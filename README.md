@@ -17,7 +17,7 @@
 
 또한 자바 설정 파일도 만들어야 했다.      
 
-근데 예전 방식대로 세팅을 할려니 보지 못했던 duprecated된 어노테이션을 보고 좀 의아했다.      
+근데 예전 방식대로 세팅을 할려니 보지 못했던 deprecated된 어노테이션을 보고 좀 의아했다.      
 
 그래서 해당 github의 예제와 공식 문서를 다 뒤저가면서 삽질을 했는데 편해졌다.     
 
@@ -94,7 +94,7 @@ http://localhost:8080/documentation/swagger-ui/
 요렇게 접근이 가능하다.     
 
 ```
-@EnableSwagger2WebFlux <-- @duprecated
+@EnableSwagger2WebFlux <-- @deprecated
 ```
 
 일단 나의 그레이들 설정은 다음과 같다.     
