@@ -346,7 +346,7 @@ void givenSetTest() {
                 .verifyComplete();
 }
 ```
-![실행이미지](https://github.com/basquiat78/WebFlux-R2DBC/blob/1.혼자서북치고장구치기/capture/capture8.png)      
+![실행이미지](https://github.com/basquiat78/WebFlux-R2DBC/blob/1.혼자서북치고장구치기/capture/capture9.png)      
 
 "순서는 내 사전에 없다. 그냥 막 넣으면 그만이다!" - Set의 어록      
 
