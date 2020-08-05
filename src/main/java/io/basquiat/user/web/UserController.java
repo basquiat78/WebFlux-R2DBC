@@ -56,6 +56,21 @@ public class UserController {
         return userService.customFindAllProjection();
     }
 
+    @GetMapping("/user/{name}/{age}")
+    @ApiOperation(value = "사용자 조회 API")
+    @ResponseStatus(HttpStatus.OK)
+    public Flux<User> findByNameAndAge(@PathVariable(value = "name", required = true) String name,
+                                       @PathVariable(value = "age", required = true) int age) {
+        return userService.findByNameAndAge(name, age);
+    }
+
+    @GetMapping("/user/{name}")
+    @ApiOperation(value = "사용자 조회 API")
+    @ResponseStatus(HttpStatus.OK)
+    public Flux<User> findByNameAndAge(@PathVariable(value = "name", required = true) String name) {
+        return userService.findByNameContaining(name);
+    }
+
     @PatchMapping("/user")
     @ApiOperation(value = "사용자 수정 API")
     @ResponseStatus(HttpStatus.OK)

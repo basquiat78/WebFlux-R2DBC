@@ -104,10 +104,26 @@ class UserServiceTest {
                     .verifyComplete();
     }
 
-    @Test
+    //@Test
     void testCustomDeleteUser() {
         Mono<Void> mono = userService.customDeleteUser(2L);
         StepVerifier.create(mono)
+                    .verifyComplete();
+    }
+
+    //@Test
+    void testFindByNameAndAge() {
+        Flux<User> flux = userService.findByNameAndAge("이센스", 33);
+        StepVerifier.create(flux)
+                    .assertNext(user-> assertThat(user.getName()).isEqualTo("이센스"))
+                    .verifyComplete();
+    }
+
+    @Test
+    void testFindByNameContaining() {
+        Flux<User> flux = userService.findByNameContaining("센스");
+        StepVerifier.create(flux)
+                    .expectNextCount(2)
                     .verifyComplete();
     }
 

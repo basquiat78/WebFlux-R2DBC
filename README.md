@@ -7,7 +7,138 @@
 # Issue 정리     
 심심해서 spring-data-jpa처럼 연쇄적으로 다이나믹하게 메소드를 생성하는것이 가능하지 않을까 해서 테스트 해보다가 되는 것을 보고 깜놀.....     
 
-관련 몇 가지 테스트는 [혼자서북치고장구치기 1](https://github.com/basquiat78/WebFlux-R2DBC/tree/1.%ED%98%BC%EC%9E%90%EC%84%9C%EB%B6%81%EC%B9%98%EA%B3%A0%EC%9E%A5%EA%B5%AC%EC%B9%98%EA%B8%B0)에서 확인 가능하다.
+```
+INSERT INTO basquiat_user (user_name, user_age) VALUES ('사이먼 도미닉', 36);
+INSERT INTO basquiat_user (user_name, user_age) VALUES ('이센스', 33);
+INSERT INTO basquiat_user (user_name, user_age) VALUES ('팔로알토', 36);
+INSERT INTO basquiat_user (user_name, user_age) VALUES ('키드밀리', 26);
+INSERT INTO basquiat_user (user_name, user_age) VALUES ('이 센', 33);
+```
+일단 다음과 같이 데이터를 밀어 넣는다.
+
+UserRepository
+
+```
+definitions or references in the same repository. Learn more
+
+package io.basquiat.user.repo;
+
+import io.basquiat.user.model.User;
+import org.springframework.data.repository.reactive.ReactiveCrudRepository;
+import reactor.core.publisher.Flux;
+
+public interface UserRepository extends ReactiveCrudRepository<User, Long>, CustomUserRepository {
+
+    /**
+     * name과 age로 찾는다.
+     * @param name
+     * @param age
+     * @return Flux<User>
+     */
+    Flux<User> findByNameAndAge(String name, int age);
+
+    /**
+     * like 검색
+     * @param name
+     * @return Flux<User>
+     */
+    Flux<User> findByNameContaining(String name);
+
+}
+```
+이름과 나이로 찾는 것, 그리고 이름으로 like검색을 하는 메소드를 작성한다.
+
+UserService에 다음 2개의 코드를 넣는다.
+
+```
+/**
+ * dynamin method Chaining
+ * @param name
+ * @param age
+ * @return Flux<User>
+ */
+public Flux<User> findByNameAndAge(String name, int age) {
+    return userRepo.findByNameAndAge(name, age);
+}
+
+/**
+ * dynamin method Chaining
+ * @param name
+ * @return Flux<User>
+ */
+public Flux<User> findByNameContaining(String name) {
+    return userRepo.findByNameContaining(name);
+}
+```
+다음과 같이 테스트를 실행해 보자.
+
+```$xslt
+@Test
+void testFindByNameAndAge() {
+    Flux<User> flux = userService.findByNameAndAge("이센스", 33);
+    StepVerifier.create(flux)
+                .assertNext(user-> assertThat(user.getName()).isEqualTo("이센스"))
+                .verifyComplete();
+}
+
+@Test
+void testFindByNameContaining() {
+    Flux<User> flux = userService.findByNameContaining("센스");
+    StepVerifier.create(flux)
+                .expectNextCount(2)
+                .verifyComplete();
+}
+```
+
+UserController에도 다음과 같이 하나 넣어보자.
+
+```
+@GetMapping("/user/{name}/{age}")
+@ApiOperation(value = "사용자 조회 API")
+@ResponseStatus(HttpStatus.OK)
+public Flux<User> findByNameAndAge(@PathVariable(value = "name", required = true) String name,
+                                   @PathVariable(value = "age", required = true) int age) {
+    return userService.findByNameAndAge(name, age);
+}
+
+@GetMapping("/user/{name}")
+@ApiOperation(value = "사용자 조회 API")
+@ResponseStatus(HttpStatus.OK)
+public Flux<User> findByNameAndAge(@PathVariable(value = "name", required = true) String name) {
+    return userService.findByNameContaining(name);
+}
+```
+
+UserControllerTest
+
+```
+@Test
+void testFindByNameAndAge() {
+    webTestClient.get()
+                 .uri("/v1/user/{name}/{age}", "팔로알토", 36)
+                 .exchange()
+                 .expectStatus().isOk()
+                 .expectBodyList(User.class).hasSize(1);
+}
+
+@Test
+void testFindByNameContaining() {
+    webTestClient.get()
+                 .uri("/v1/user/{name}", "센스")
+                 .exchange()
+                 .expectStatus().isOk()
+                 .expectBodyList(User.class).hasSize(2);
+                 //.expectBodyList(User.class).hasSize(1); //실패 예상
+}
+```
+이게 된다.
+
+```
+DEBUG 98678 --- [actor-tcp-nio-1] o.s.d.r2dbc.core.NamedParameterExpander  : Expanding SQL statement [SELECT basquiat_user.id, basquiat_user.user_name, basquiat_user.user_age FROM basquiat_user WHERE basquiat_user.user_name LIKE $1] to [SELECT basquiat_user.id, basquiat_user.user_name, basquiat_user.user_age FROM basquiat_user WHERE basquiat_user.user_name LIKE $1]
+```
+NamedParameterExpander가 이와 관련된 클래스인듯 싶다.     
+
+작성하기 전에 한번 테스트라도 해보고 쓸걸 그랬나보다.
 
 ## Prerequisites     
 
