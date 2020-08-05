@@ -1,4 +1,5 @@
-# Spring Boot WebFlux With R2DBC      
+# 혼자 북치고 장구치는 초간단 프로젝트
+혼자서 북치고 장구치는 서버를 하나 만들어 볼까 한다.      
 
 ## Prerequisites     
 
@@ -8,1021 +9,1200 @@
 4. Plugin: Lombok
 5. Database: PostgreSQL 12.3
 6. Spring Boot: 2.3.2.RELEASE
-7. Swagger : springfox-boot-starter 3.0.0
+7. Swagger: springfox-boot-starter 3.0.0
+8. Redis: redis_version:6.0.6
+9. Redis GUI Tool: Medis     
 
-## Configuration Swagger     
-기존에 WebFlux에서 스웨거를 사용하는게 좀 많이 불편했었다.      
+## Redis Installation
+망할 Window10에서 Redis 설치는 좀 거시기한 것이 버전이 엄청 낮다. 거의 손 놓은 듯...            
 
-레파지토리의 경우에는 jcenter에 url을 직접적으로 넣어야 했고 dependency를 걸어야 할 라이브러리도 3,4개였다.      
+하긴 왜 그걸 굳이 Window10에 깔아서 쓸까라는 생각이 퍼득 드는데 일단 Redis를 한번 설치해 보자.     
 
-또한 자바 설정 파일도 만들어야 했다.      
+정말 간단하다.
 
-근데 예전 방식대로 세팅을 할려니 보지 못했던 deprecated된 어노테이션을 보고 좀 의아했다.      
-
-그래서 해당 github의 예제와 공식 문서를 다 뒤저가면서 삽질을 했는데 편해졌다.     
-
-그래서 이전 방식처럼 번거롭지 않다.     
-
-그냥 
+일단 터미널을 연다.
 
 ```
-repositories {
-	mavenCentral()
+brew update
+brew install redis
 
-	jcenter()
+/** 레디스 서버 시작 */
+brew services start redis
+
+/** 레디스 서버을 끄고 싶으면 밑에 명령어로 */
+brew services stop redis
+```
+정말 간단하지 아니 할 수 없다.      
+
+그리고 Redis는 기본적으로 in-memory DB로 사용할 수 있기 때문에 gui tool도 설치해 보자.       
+
+예전에 Redis Desktop Manager, RDM이라고 설치해서 사용했었는데 이게 언제 유료화가 된겨????      
+
+그래서 폭풍 검색으로 Medis라는 툴을 찾았다. gui는 확실히 RDM에 비해서 많이 모자르지만 충분히 GUI로 충분하다.      
+
+참고로 nodeJs필수이다.     
+
+설마... 설치 방법까지 알려줘야 하나? 좀 오래되긴 했지만 [nodejs installation](https://heropy.blog/2018/02/17/node-js-install/) 링크로...     
+
+참고로 nvm으로 설치해서 버전 관리를 할 수 있게 하는 방식이 유리하다.      
+
+깔았다는 전제하에 [medis 깃허브](https://github.com/luin/medis)에서 깃 주소를 복사하고 폴더 하나 생성해서 거기다가 작업을 해보자.
+
+```
+>cd <go to your directory>
+>git clone https://github.com/luin/medis.git
+>npm insatll
+>npm run build
+>npm start
+```
+시작하게 되면 Electron으로 하나의 툴을 띄우게 된다.     
+
+![실행이미지](https://github.com/basquiat78/WebFlux-R2DBC/blob/1.혼자서북치고장구치기/capture/capture1.png)    
+
+비번 설정을 안했으니 그냥 connection을 누르면     
+
+![실행이미지](https://github.com/basquiat78/WebFlux-R2DBC/blob/1.혼자서북치고장구치기/capture/capture2.png)    
+
+화면을 볼 수 있다.     
+
+## Reactive Redis
+그레이들 설정에 다음과 같이 추가를 한다.
+
+```
+implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
+implementation group: 'org.apache.commons', name: 'commons-pool2', version: '2.8.1'
+```
+lettuce pool을 쓰기 위해선 commons-pool2가 필요하다.      
+
+application.yml에 redis관련 설정을 넣어준다.
+
+```
+spring:
+  profiles: local
+  freemarker:
+    charset: UTF-8
+    check-template-location: true
+    enabled: true
+    suffix: .ftl
+    template-loader-path: classpath:/templates
+  r2dbc:
+    url: r2dbc:pool:postgresql://127.0.0.1:5432/basquiat
+    username: postgres
+    password: basquiat
+    pool:
+      initial-size: 10
+      max-size: 30
+      max-idle-time: 30m
+      validation-query: SELECT 1
+  redis:
+    host: localhost
+    port: 6379
+    password:
+    lettuce:
+      pool:
+        min-idle: 2
+        max-idle: 5
+        max-active: 10
+```
+그냥 가장 기본적인 것들만 사용할 것이라면 만들지 않아도 auto-config 작동하게 되어있다.      
+
+하지만 일단 어찌되었든 언젠가는 만들어야 하니 다음과 같이 클래스를 하나 만들자.
+
+```
+package io.basquiat.config;
+
+import lombok.AllArgsConstructor;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+
+@Configuration
+@AllArgsConstructor
+public class ReactiveRedisConfig {
+
+    private final RedisConnectionFactory factory;
+
 }
 
-.
-.
-.
-.
-
-implementation 'io.springfox:springfox-boot-starter:3.0.0'
 ```
-이렇게만 설정만 하면 된다.     
+## 뭐가 되었든 Redis 한번 맛보자.      
+예전에는 redis로 pub/sub과 spring session 공유를 위한 in-memory db로 사용했었다.      
 
-예전에는 
+그 외에도 cache를 위해서도 많이 사용하는데 그러면 어떻게 사용하는지에 대해서 한번 맛이라도 보자.     
 
-```
-@Configuration
-@EnableSwagger2WebFlux
-public class SwaggerConfiguration {
-	@Bean
-	public Docket api() { 
-		return new Docket(DocumentationType.SWAGGER_2).select()
-                                          .apis(RequestHandlerSelectors.withMethodAnnotation(ApiOperation.class))
-                                          .build()
-                                          .genericModelSubstitutes(Optional.class, Flux.class, Mono.class);
-	} 
-}
-```
-이런 녀석도 만들어 줘야 하고 
+### List타입의 PUSH
+
+다음 테스트 코드를 한번 확인해 보자.
 
 ```
-@Configuration
-public class WebfluxConfiguration implements WebFluxConfigurer {
+package io.basquiat.redis.test;
 
-	@Override
-	public void addResourceHandlers(ResourceHandlerRegistry registry) {
-		registry.addResourceHandler("/swagger-ui.html**")
-                .addResourceLocations("classpath:/META-INF/resources/");
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.ReactiveListOperations;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
-        registry.addResourceHandler("/webjars/**")
-                .addResourceLocations("classpath:/META-INF/resources/webjars/");
+import java.util.Arrays;
+
+@ExtendWith(SpringExtension.class)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+public class ReactiveRedisTest {
+
+    @Autowired
+    private ReactiveStringRedisTemplate redisTemplate;
+
+    /**
+     * redis에서는 rpush, lpush, rpop, lpop을 통해서 stack, queue를 구현할 수 있다.
+     * 만일 다음과 같은 것을 생각해 보자.
+     *                          index 0, 1, 2, 3, ......
+     *                          -------------------------
+     *          LEFT POP <--                              <-- RIGHT PUSH DATA
+     *                          -------------------------
+     *
+     *                          -------------------------
+     *      LEFT PUSH DATA ->                              --> RIGHT POP
+     *                          -------------------------
+     * 1. 어떤 비지니스 로직은 무조건 right push, left pop으로만 진행한다. 또는 left push, right pop으로만 진행한다.
+     *    - 잘 생각해보면 이것은 오른쪽에서 왼쪽 또는 반대로 흘러가는 queue의 형태와 같다.
+     *
+     *                               -------------------------
+     *    LEFT POP <-- --> LEFT PUSH
+     *                               -------------------------
+     *
+     *              -------------------------
+     *                                         RIGHT PUSH <-- --> RIGHT POP
+     *              -------------------------
+     * 2. 어떤 비지니스 로직은 무조건 right push, left pop으로만 진행한다. 또는 left push, right pop으로만 진행한다.
+     *     - 이것도 잘 보면 stack처럼 작동한다.
+     *
+     * 3. 위와 같은 방식을 통해서 어떤 니즈로 인해서 LPOP을 사용할 것인지 RPOP을 사용할 것인지 정할 수 있다.
+     *
+     */
+    //@Test
+    void givenRightPush() {
+        ReactiveListOperations<String, String> reactiveListOps = redisTemplate.opsForList();
+        // 단건으로 넣기
+        Mono<Long> mono = reactiveListOps.rightPush("deliveryList", "delivery1").log("completed right push!");
+        StepVerifier.create(mono)
+                    .expectNext(1L)
+                    .verifyComplete();
+    }
+
+    //@Test
+    void givenRightPushAll() {
+        ReactiveListOperations<String, String> reactiveListOps = redisTemplate.opsForList();
+        // 리스트로 통채로 넣기
+        Mono<Long> mono = reactiveListOps.rightPushAll("deliveryList", Arrays.asList("delivery2", "delivery3", "delivery4"))
+                                         .log("All Right PUSH Completed");
+        StepVerifier.create(mono)
+                    .expectNext(4L) //  총 4개가 되어야 한다.
+                    .verifyComplete();
+    }
+
+    //@Test
+    void givenLeftPush() {
+        ReactiveListOperations<String, String> reactiveListOps = redisTemplate.opsForList();
+        // 왼쪽에서 데이터를 넣는다.
+        Mono<Long> mono = reactiveListOps.leftPush("deliveryList", "delivery5")
+                                         .log("All Right PUSH Completed");
+        StepVerifier.create(mono)
+                    .expectNext(5L) // 총 5개가 되어야 한다.
+                    .verifyComplete();
+    }
+
+    @Test
+    void givenLeftPushAll() {
+        ReactiveListOperations<String, String> reactiveListOps = redisTemplate.opsForList();
+        // 왼쪽에서 데이터를 넣는다.
+        Mono<Long> mono = reactiveListOps.leftPushAll("deliveryList", Arrays.asList("delivery6", "delivery7", "delivery8"))
+                                         .log("All Right PUSH Completed");
+        StepVerifier.create(mono)
+                    .expectNext(8L) // 총 8개가 되어야 한다.
+                    .verifyComplete();
     }
 
 }
 ```
-이런 녀석도 설정을 해줘야 화면을 띄울 수 있지만 지금은 다 필요없다.     
 
-다만 다음과 같이 application.yml에
+![실행이미지](https://github.com/basquiat78/WebFlux-R2DBC/blob/1.혼자서북치고장구치기/capture/capture3.png)      
+
+![실행이미지](https://github.com/basquiat78/WebFlux-R2DBC/blob/1.혼자서북치고장구치기/capture/capture4.png)      
+
+![실행이미지](https://github.com/basquiat78/WebFlux-R2DBC/blob/1.혼자서북치고장구치기/capture/capture5.png)      
+
+![실행이미지](https://github.com/basquiat78/WebFlux-R2DBC/blob/1.혼자서북치고장구치기/capture/capture6.png)       
+
+테스트 클래스에 어설프지만 그림으로 표현한 LPUSH, RPUSH에 따른 데이터가 들어가는 모습을 위의 이미지에서 유심히 살펴보기 바란다.     
+
+index가 있어서 데이터가 들어간 구조를 생각하기 쉽다.      
+
+그렇다면 POP과 관련된 테스트도 한번 진행해 보자.     
+
+## List타입의 POP
+Java의 queue와 stack에 대한 개념은 아마 다들 아실 것이다. LIFO(Last In First Out)과 FIFO(First In First Out)로 보통 설명한다.     
+
+하지만 쉽게 얘기하면 그냥 물호수와 컵을 한번 생각해 보자.     
+
+queue는 물호수에서 먼저 들어간 물이 가장 먼저 나오는 형태를 지니고 있다.         
+
+그리고 stack은 네모난 컵을 생각하고 네모난 어떤 물질을 차곡 차곡 쌓으면 결국 먼저 들어간 녀석은 자기 위에 있는 다른 네모난 것들이 다 나가서야 나간다.     
+
+그렇다면 우리가 앞서 LPUSH와 RPUSH로 들어갔던 데이터를 보면 결국 어떤 위치에서 데이터를 꺼내오냐에 따라 그 결과가 달라진다는 것을 알게 된다.     
+
+긴말 할거 없이 코드로 보자.     
+
+마지막 이미지에서 데이터가 들어가 있는 모습을 머리속에 그려가면서 한번 테스트 해보자.
 
 ```
-springfox:
-  documentation:
-    swagger-ui:
-      base-url: /documentation
-```
-이렇게 자신이 원하는 이름으로 경로를 작성하면          
-
-http://localhost:8080/documentation/swagger-ui/index.html
-
-또는
-
-http://localhost:8080/documentation/swagger-ui/
-
-요렇게 접근이 가능하다.     
-
-```
-@EnableSwagger2WebFlux <-- @deprecated
-```
-
-일단 나의 그레이들 설정은 다음과 같다.     
-
-```
-plugins {
-	id 'org.springframework.boot' version '2.3.2.RELEASE'
-	id 'io.spring.dependency-management' version '1.0.9.RELEASE'
-	id 'java'
+@Test
+void givenLeftPop() {
+    ReactiveListOperations<String, String> reactiveListOps = redisTemplate.opsForList();
+    // 왼쪽에서 데이터를 pop한다. pop한 데이터는 사라진다.
+    Mono<String> mono = reactiveListOps.leftPop("deliveryList");
+    StepVerifier.create(mono)
+                .assertNext(pop -> pop.equals("delivery8"))
+                .verifyComplete();
 }
+```      
+맨 마지막 이미지대로라면 index가 0인 녀석의 값은 "delivery8"이다.      
 
-group = 'io.basquiat'
-version = '0.0.1-SNAPSHOT'
-sourceCompatibility = '1.8'
+검증이 완료되고 실제 medis에서 새로 고침으로 확인하면 LPOP이기 때문에 다음 이미지처럼 보여질 것이다.     
 
-configurations {
-	compileOnly {
-		extendsFrom annotationProcessor
-	}
-}
+![실행이미지](https://github.com/basquiat78/WebFlux-R2DBC/blob/1.혼자서북치고장구치기/capture/capture7.png)      
 
-repositories {
-	mavenCentral()
+그러면 예상할 수 있듯이 RPOP을 하게 되면 "delivery4"가 지워질까?     
 
-	jcenter()
-}
-
-dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
-	implementation 'org.springframework.boot:spring-boot-starter-webflux'
-	implementation 'org.springframework.boot:spring-boot-starter-freemarker'
-	compileOnly 'org.projectlombok:lombok'
-	runtimeOnly 'io.r2dbc:r2dbc-postgresql'
-	runtimeOnly 'org.postgresql:postgresql'
-	annotationProcessor 'org.projectlombok:lombok'
-	testImplementation('org.springframework.boot:spring-boot-starter-test') {
-		exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
-	}
-	testImplementation 'io.projectreactor:reactor-test'
-	developmentOnly "org.springframework.boot:spring-boot-devtools"
-
-	implementation 'io.springfox:springfox-boot-starter:3.0.0'
-
-}
-
-test {
-	useJUnitPlatform()
+```
+@Test
+void givenRightPop() {
+    ReactiveListOperations<String, String> reactiveListOps = redisTemplate.opsForList();
+    // 오른쪽에서 데이터를 pop한다. pop한 데이터는 사라진다.
+    Mono<String> mono = reactiveListOps.rightPop("deliveryList");
+    StepVerifier.create(mono)
+                .assertNext(pop -> pop.equals("delivery4"))
+                .verifyComplete();
 }
 ```
 
-## thymeleaf vs freemarker
-뭐 딱히... 정답이 있나? 둘다 써 봤는데 다 비슷하고 내 기준에서는 freemarker가 좀 나은거 같아서 나는 freemarker를 선호한다.    
+![실행이미지](https://github.com/basquiat78/WebFlux-R2DBC/blob/1.혼자서북치고장구치기/capture/capture8.png)      
 
-어짜피 뭐 front-end를 이걸로 하는 데가 있나? 그냥 테스트용 프로젝트에서 쉽고 가볍게 사용할 수 있어서 쓰는거지....       
+## List타입의 expired설정
 
-설마 있는건 아니겠지?       
+expired는 유효기간을 설정하는 것이다.      
 
-## Intro     
-이 프로젝트는 R2DBC에 대해서 조금 맛보는 것이다.     
+List타입의 경우에는 key에 대해서 expired를 설정하기 때문에 현재로써는 리스트 내의 각각의 element별로 줄 수는 없다.    
 
-그리고 내가 생각하는 것들을 하나씩 확장해 나가는 형식으로 바꿔 나갈 예정이다.     
-
-사실 나는 WebFlux와 JPA 또는 myBatis조합에서 non-blocking을 별도의 설정과 메소드를 만들어서 사용하지 않고 마치 mongoDB처럼 쉽게 사용하는 것을 바랬다.    
-
-하지만 아는 분들은 아시겠지만 R2DBC는 ORM이 아니다.      
-
-mongoDB와 WebFlux를 조합해서 사용하신 분들이라면 몽고디비에서는 JPA에서 말하는 엔티티를 도큐먼트라고 지칭하는 것을 알 수 있다.     
-
-근데 이것이 그거랑 좀 많이 비슷하다. **THIS IS NOT A ENTITY!, BUT LIKE**         
-
-그리고 제공하는 Repository를 상속받아서 사용하기만 하면 쉽게 코드를 구현할 수 있게 되어 있다.     
-
-초창기에는 JPA와 사용할 때 자료를 찾다 보니     
+그럼 코드로 한번 살펴보자.
 
 ```
-Flux.fromIterable() Or Mono.just()
-```
-외국 블로그든 국내 블로그등 이 딴걸로 메소드를 감싸서 리턴하는 방식으로 처리했다고 하는 글들이 많았는데....     
+@Test
+void givenListExpiredSetting() {
+    ReactiveListOperations<String, String> reactiveListOps = redisTemplate.opsForList();
+    // 4초 이후에 key : deliveryList에 있는 데이터가 사라진다.
+    Mono<Long> mono = reactiveListOps.rightPushAll("deliveryList", Arrays.asList("delivery1", "delivery2", "delivery3"))
+                                     .doOnNext(onNext -> redisTemplate.expire("deliveryList", Duration.ofSeconds(4)).subscribe())
+                                     .log();
+    StepVerifier.create(mono)
+                .expectNext(3L)
+                .verifyComplete();
 
-그래서 나의 깃헙의 초기 WebFlux관련 프로젝트나 이전 회사에서 작업한 수많은 작업물이 이렇게 한걸 생각하면 ~~흑흑흑~~     
+    try {
+        Thread.sleep(4000);
+    } catch (InterruptedException e) {
+        e.printStackTrace();
+    }
 
-어째든 저것들은 따라가면 저건 단지 랩퍼나 컨버터에 더 가깝다. 그냥 POJO나 Collection같은 객체를 비동기로 처리 하기 위해 리액티브 스트림즈로 변환시켜준다.          
+    // 4초 이후 레디스로부터 데이터를 가져온다.
+    Flux<String> flux = reactiveListOps.range("deliveryList", 0, 2)
+                                       .log();
 
-따라서 
-
-```
-Flux.fromIterable(repo.findAll())
-```
-이 코드는 바로 List<T> 타입을 반환하는 repo.findAll()가 호출되는 시점, 즉 DB io가 발생하는 순간 비동기에서 동기로 바뀐다.     
-
-이것을 코드로 증명하는 블로그가 있었는데 찾지 못하겠다. 찾으면 링크 한번 걸어보겠다.        
-
-다만 에러가 나지 않고 그냥 흘러갈 뿐 결국 우리가 원하는 완벽한 비동기는 아니라는 것이다.     
-
-결국 자바 8에서 지원하는 CompletableFuture.supplyAsync나 
-
-```
-Mono blockingWrapper = Mono.fromCallable(() -> { 
-    return /* make a remote synchronous call */ 
-});
-blockingWrapper = blockingWrapper.subscribeOn(Schedulers.boundedElastic()); 
-```
-이런 녀석을 만들고 감싸야 한다.     
-
-하지만 이것도 쭉 따라가다 곰곰히 생각해 보면 별도의 쓰레드를 생성해서 돌리는 방식이다.      
-
-결국 쓰레드라는 리소스를 사용하는 것인데 이것도 리퀘스트가 많아지면 어떻게 되려나?      
-
-물론 Async, ThreadPool설정을 통해서 이것을 해소할 수 있다고 해도.... 뭔가 번거롭다.        
-
-사실 그래서 이것을 해결하기 위해 나온게 R2DBC이다.     
-
-작년 초중반에는 마이너 버전이었는데 지금은 스프링 진형에서 spring-boot-starter-data-r2dbc을 제공한다.      
-
-현재, 2020-07-29 기준으로 spring-boot-starter-data-r2dbc의 버전은 1.1.2.RELEASE이다.     
-
-그러나... 내부적으로 땡겨오는 r2dbcsms 0.8x대로 여전히 마이너버전이다. ~~믿고 쓸수 있어? 결국 뭔가 변경되겠지? 갈길이 뭐네?~~
-
-## Why Postgres?
-
-일단 내 컴터에 깔려 있어서이다. 별 이유 없다.     
-
-또한 https://r2dbc.io/ 사이트의 Drivers 목록에 보면 사실 mySQL이 있지만 MariaDB와 PostgreSQL의 경우에는 해당 벤더가 공식적으로 작업한 것이다.     
-
-따라서 좀 더 안정적인 드라이버를 위해서 선택한 것 뿐이다.      
-
-## NOT ORM??    
-
-```
-Spring Data R2DBC aims at being conceptually easy.      
-In order to achieve this it does NOT offer caching, lazy loading, write behind or many other features of ORM frameworks.      
-This makes Spring Data R2DBC a simple, limited, opinionated object mapper.     
-```
-spring.io의 Spring Data R2DBC의 일부를 발췌한 내용이다.     
-
-caching, lazy loading, write behind or many other features of ORM frameworks <- NOT이라는 표현으로 강조하고 있다!!!!     
-
-비슷한 컨셉을 가지고 있다. 하지만 spring-data-jpa처럼 연쇄적인 메소드 이름으로 쿼리를 생성하는 기능을 아직까지는 지원하지 않는다.    
-
-기본적인 컨셉 가령 findById, existById, save, saveAll같은 녀석들만 지원한다.      
-
-언젠가는 spring-data-jpa처럼 변경될려나?      
-
-```
-findByIdAndPositionAndNameContain....()
-```
-~~이런거 없다.~~     
-
-그리고 queryDSL이나 Criteria같은 방식의 쿼리 작성을 지원한다.      
-
-하지만 이것도 제한적이다. join같은 것은 네이티브 쿼리로 작성해야 한다.            
-
-그렇다고 JPQL을 바라지 마라. 말 그대로 네이티브 쿼리를 쓴다.           
-
-이 말인즉, 쿼리를 잘 알아야 한다는 것이다.      
-
-## First Impressions     
-첫 인상은 이렇다.      
-
-'일단 우리는 spring-data, jpa의 컨셉들을 차용해서 비슷하게는 말들었어.'       
-
-## Custom Repository
-
-WebFlux와 관련해서 spring-data에서 제공하는 것은 다음과 같다.
-
-```
-/*
- * Copyright 2016-2020 the original author or authors.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-package org.springframework.data.repository.reactive;
-
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-
-import org.reactivestreams.Publisher;
-import org.springframework.data.repository.NoRepositoryBean;
-import org.springframework.data.repository.Repository;
-
-/**
- * Interface for generic CRUD operations on a repository for a specific type. This repository follows reactive paradigms
- * and uses Project Reactor types which are built on top of Reactive Streams.
- *
- * @author Mark Paluch
- * @author Christph Strobl
- * @since 2.0
- * @see Mono
- * @see Flux
- */
-@NoRepositoryBean
-public interface ReactiveCrudRepository<T, ID> extends Repository<T, ID> {
-	<S extends T> Flux<S> saveAll(Iterable<S> entities);
-	<S extends T> Flux<S> saveAll(Publisher<S> entityStream);
-	Mono<T> findById(ID id);
-	Mono<T> findById(Publisher<ID> id);
-	Mono<Boolean> existsById(ID id);
-	Mono<Boolean> existsById(Publisher<ID> id);
-	Flux<T> findAll();
-	Flux<T> findAllById(Iterable<ID> ids);
-	Flux<T> findAllById(Publisher<ID> idStream);
-	Mono<Long> count();
-	Mono<Void> deleteById(ID id);
-	Mono<Void> deleteById(Publisher<ID> id);
-	Mono<Void> delete(T entity);
-	Mono<Void> deleteAll(Iterable<? extends T> entities);
-	Mono<Void> deleteAll(Publisher<? extends T> entityStream);
-	Mono<Void> deleteAll();
+    StepVerifier.create(flux)
+                .expectNextCount(0) // expired에 의해 데이터가 삭제되었기 때문에 카운트 0
+                .verifyComplete();
 }
 ```
-위에서 언급했듯 기본적으로 제공하는 것 외에는 spring-data-jpa에서 엔티티의 필드로 연쇄적인 메소드 이름으로 쿼리를 생성하는 기능을 아직까지는 지원하지 않는다.     
+만일 캐시를 염두해 둔다면 이 expired를 통해 생명주기를 결정 할 수 있다.     
 
-그래서 필요한 것들은 직접 만들어야 한다. 뭐 어짜피 기본적인 CUD에 경우에는 가능하니 CustomRepository를 이용해서 작성해 볼까 한다.    
+## Set
+자바의 Set를 생각하면 쉽다.
 
-**User**
+1. value 중복 허용 안함     
+
+2. 순서가 뭐에요? ~~먹는건가요?~~     
 
 ```
-package io.basquiat.user.model;
+@Test
+void givenSetTest() {
+    ReactiveSetOperations<String, String> reactiveSetOps = redisTemplate.opsForSet();
+    //Mono<Long> mono = reactiveSetOps.add("set", "set1", "set2", "set3", "set3"); 중복 허용하지 않는 것 테스트
+    // 위 테스트 진행시에는 "set3"가 중복이기 때문에 실제로는 3개의 데이터만 들어간다. 따라서 밑에 검증 단계에서 에러 발생
+    Mono<Long> mono = reactiveSetOps.add("set", "set1", "set2", "set3", "set4");
+    StepVerifier.create(mono)
+                .expectNext(4L)
+                .verifyComplete();
+}
+```
+![실행이미지](https://github.com/basquiat78/WebFlux-R2DBC/blob/1.혼자서북치고장구치기/capture/capture8.png)      
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonRootName;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.ToString;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.Transient;
-import org.springframework.data.relational.core.mapping.Column;
-import org.springframework.data.relational.core.mapping.Table;
+"순서는 내 사전에 없다. 그냥 막 넣으면 그만이다!" - Set의 어록      
 
-import java.util.ArrayList;
-import java.util.List;
+특이한 점은 GUI를 보면 value가 아니라 member라고 표현하는 것을 알 수 있다.
 
-@Data
+```
+@Test
+void givenSetMemberTest() {
+    ReactiveSetOperations<String, String> reactiveSetOps = redisTemplate.opsForSet();
+    Flux<String> flux = reactiveSetOps.members("set").filter(value -> value.equals("set2"));
+    StepVerifier.create(flux)
+                .expectNext("set2")
+                .verifyComplete();
+}
+```
+members라는 메소드를 통해서 해당 키의 정보를 가져온다.      
+
+그러면 이넘도 expired가 가능한가?
+
+앞서 테스트도 그렇고 key는 중복 허용을 하지 않기 때문에 GUI에서 기존의 데이터를 삭제하고 테스트한다.
+
+```
+@Test
+void givenSetExpiredTest() {
+    ReactiveSetOperations<String, String> reactiveSetOps = redisTemplate.opsForSet();
+    Mono<Long> mono = reactiveSetOps.add("set", "set1", "set2", "set3", "set4")
+                                    .doOnNext(onNext -> redisTemplate.expire("set", Duration.ofSeconds(4)).subscribe());
+    StepVerifier.create(mono)
+                .expectNext(4L)
+                .verifyComplete();
+
+    try {
+        Thread.sleep(4000);
+    } catch (InterruptedException e) {
+        e.printStackTrace();
+    }
+
+    Flux<String> flux = reactiveSetOps.members("set");
+    StepVerifier.create(flux)
+                .expectNextCount(0)
+                .verifyComplete();
+}
+```
+이외에도 Hash, SortedSet을 지원하는 ZSet이나 좌표 정보로 처리하는 Geo라든가 HyperLogLog같은 것도 지원한다.         
+
+하지만 개인적으로 다뤄본 종류는 그나마 hash나 zSet정도인데 실무에서 사용해 본 경험이 없다.      
+
+다만 사용법은 거의 비슷하기 때문에 필요에 의해서 사용법을 확인해 보면 될것 같다.      
+
+## Redis Publisher/Subscriber (pub/sub)     
+Message Queue와 관련해서 kafka, RabbitMQ같은 녀석들이 있지만 일단 우리는 '혼자서 북치고 장구'를 쳐야 하니 Redis를 통해 pub/sub 구현을 한다.     
+
+앞서 빈 껍데기만 만들어 놓은 ReactiveRedisConfig에 설정 코드를 추가한다.
+
+```
+package io.basquiat.config;
+
+import io.basquiat.delivery.model.Delivery;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
+import org.springframework.data.redis.core.ReactiveRedisOperations;
+import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.data.redis.listener.ReactiveRedisMessageListenerContainer;
+import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.RedisSerializationContext;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
+
+@Configuration
+public class ReactiveRedisConfig {
+
+    /**
+     * topic channel open
+     * @return ChannelTopic
+     */
+    @Bean
+    public ChannelTopic topic() {
+        return new ChannelTopic("delivery");
+    }
+
+    /**
+     * ReactiveRedisMessageListenerContainer regist
+     * @param factory
+     * @return ReactiveRedisMessageListenerContainer
+     */
+    @Bean
+    public ReactiveRedisMessageListenerContainer messageListenerContainer(ReactiveRedisConnectionFactory factory) {
+        // ReactiveRedisMessageListenerContainer 생성
+        ReactiveRedisMessageListenerContainer redisMessageListenerContainer = new ReactiveRedisMessageListenerContainer(factory);
+        // container에 "delivery:queue" 채널 토픽으로 들어오는 메세지를 받는 부분을 등록한다.
+        redisMessageListenerContainer.receive(topic());
+        return redisMessageListenerContainer;
+    }
+
+    /**
+     * ReactiveRedisOperations<String, Delivery> Setup and regist
+     * @param factory
+     * @return
+     */
+    @Bean
+    public ReactiveRedisOperations<String, Delivery> redisOperations(ReactiveRedisConnectionFactory factory) {
+        // 일반적인 ReactiveRedisOperations 빈 등록 방식
+        Jackson2JsonRedisSerializer<Delivery> serializer = new Jackson2JsonRedisSerializer<>(Delivery.class);
+
+        RedisSerializationContext.RedisSerializationContextBuilder<String, Delivery> builder =
+                            RedisSerializationContext.newSerializationContext(new StringRedisSerializer());
+
+        RedisSerializationContext<String, Delivery> context = builder.value(serializer).build();
+
+        return new ReactiveRedisTemplate<>(factory, context);
+    }
+
+}
+```
+
+Delivery라는 도메인을 하나 만들자.
+
+```
+package io.basquiat.delivery.model;
+
+import lombok.*;
+
+import java.io.Serializable;
+
+@Setter
+@Getter
 @NoArgsConstructor
 @ToString
-@Table("basquiat_user")
-@JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonIgnoreProperties(ignoreUnknown = true)
-public class User {
+public class Delivery implements Serializable {
 
     @Builder
-    public User(Long id, String name, int age) {
-        this.id = id;
-        this.name = name;
-        this.age = age;
+    public Delivery(String ticketId, String zipCode, String city, String street) {
+        this.ticketId = ticketId;
+        this.zipCode = zipCode;
+        this.city = city;
+        this.street = street;
     }
 
-    @Id
-    @Column("id")
-    private Long id;
+    private String ticketId;
 
-    @Column("user_name")
-    private String name;
+    private String zipCode;
 
-    @Column("user_age")
-    private int age;
+    private String city;
+
+    private String street;
 
 }
-``` 
- 
- 
-**CustomUserRepository**
+```
+
+자 그럼 문득 왜 이딴 걸 하는 걸까라는 의문이 든다.      
+
+이 브랜치는 앞에서 크게 적어논 '혼자서 북치고 장구치는' 프로젝트이다.      
+
+말이 안되는 시나리오지만 이런 기능을 토대로 시나리오 중심으로 SSE를 한번 구현해 볼 생각이다.      
+
+## Server Side Event Or Server Sent Event (SSE)            
+
+예전에 흔적을 남겼던 나의 [sever-sent-event](https://github.com/basquiat78/sever-sent-event)를 참고하면 될 것 같다.      
+
+하지만 일단 이것이 뭔지 코드로 직접 구현해서 한번 살펴보자.
+
+그 전에 우리는 FreeMarker를 사용하고 있다.      
+
+그래서 WebConfig를 하나 만들 것이다.
 
 ```
-package io.basquiat.user.repo;
+package io.basquiat.config;
 
-import io.basquiat.user.model.User;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.reactive.config.CorsRegistry;
+import org.springframework.web.reactive.config.EnableWebFlux;
+import org.springframework.web.reactive.config.ViewResolverRegistry;
+import org.springframework.web.reactive.config.WebFluxConfigurer;
+import org.springframework.web.reactive.result.view.freemarker.FreeMarkerConfigurer;
 
 /**
  * created by basquiat
+ */
+@Configuration
+@EnableWebFlux
+public class WebConfig implements WebFluxConfigurer {
+
+    /**
+     * cors setup
+     * @param registry
+     */
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/**")
+                .allowedMethods("*");
+    }
+
+    /**
+     * freemarker view resolver
+     * @param registry
+     */
+    public void configureViewResolvers(ViewResolverRegistry registry) {
+        registry.freeMarker();
+    }
+
+    /**
+     * freemarker config
+     * @return FreeMarkerConfigurer
+     */
+    @Bean
+    public FreeMarkerConfigurer freeMarkerConfigurer() {
+        FreeMarkerConfigurer freeMakerConfig = new FreeMarkerConfigurer();
+        freeMakerConfig.setTemplateLoaderPath("classpath:/templates");
+        return freeMakerConfig;
+    }
+
+}
+```
+그리고 applicaion.yml에도 설정을 해줘야 한다.
+
+```
+spring:
+  profiles: local
+  freemarker:
+    charset: UTF-8
+    check-template-location: true
+    enabled: true
+    suffix: .ftl
+    template-loader-path: classpath:/templates
+  r2dbc:
+    url: r2dbc:pool:postgresql://127.0.0.1:5432/basquiat
+    username: postgres
+    password: basquiat
+    pool:
+      initial-size: 10
+      max-size: 30
+      max-idle-time: 30m
+      validation-query: SELECT 1
+  redis:
+    host: localhost
+    port: 6379
+    password:
+    lettuce:
+      pool:
+        min-idle: 2
+        max-idle: 5
+        max-active: 10
+```
+이렇게 설정을 해줘야 freemarker로 작성된 파일을 접근할 수 있다.      
+
+그러면 이제 우리는 viewController를 작성하자.
+
+```
+package io.basquiat.view;
+
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+
+/**
  *
- * Custom User Repository
+ * View Controller
+ *
+ * created by basquiat
  *
  */
-public interface CustomUserRepository {
-    Flux<User> findAllUser();
-    Flux<User> findAllUserProjection();
-    Mono<User> createUser(User user);
-    Mono<User> updateUser(User user);
-    Mono<User> updateUserByUntyped(User user);
-    Mono<Void> removeUser(long id);
-}
-```
-많은 것을 할 생각은 없다.     
+@Controller
+public class ViewController {
 
-차후 기능에 따라서 늘려나갈 수 있겠지만 이 인터페이스의 기능은 딱 4가지만 갖을 것이다. 
- 
-1. 기존 ReactiveCrudRepository에 있는 findAll()외에도 DatabaseClient를 이용한 조회 쿼리         
-
-2. projection을 이용한 조회 쿼리        
-
-3. insert user        
-
-4. delete user       
-
-**UserRepository**
-
-```
-package io.basquiat.user.repo;
-
-import io.basquiat.user.model.User;
-import org.springframework.data.repository.reactive.ReactiveCrudRepository;
-
-public interface UserRepository extends ReactiveCrudRepository<User, Long>, CustomUserRepository {
+    /**
+     * index html render controller
+     * @param model
+     * @return String
+     */
+    @GetMapping("/")
+    public String index(final Model model) {
+        return "index";
+    }
 
 }
 ```
-
-**UserRepositoryImpl**
+설정이 완료되었으니 
 
 ```
-package io.basquiat.user.repo;
+freeMakerConfig.setTemplateLoaderPath("classpath:/templates");
+```
+코드에서 처럼 resource폴더 밑에 templates폴더를 생성하고 index.ftl을 하나 만들자.
 
-import io.basquiat.user.model.User;
+```
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+	<div class="container">
+	    <div>
+	        <div id="title">
+	            <h1>Spring WebFlux Server Sent-Events</h1>
+	        </div>
+	        <div id="sse"></div>
+	    </div>
+	</div>
+</body>
+
+<script>
+    let source;
+    function loadScript () {
+        source = new EventSource("http://localhost:8080/delivery/event");
+    }
+
+    function start() {
+        source.onmessage = event => {
+            let data = event.data;
+            let div = document.getElementById('sse');
+            div.innerHTML += "<div> Server Sent-Event Info : " + data + "</div>";
+        };
+
+        source.onerror = () => {
+            this.close();
+        };
+        source.stop = () => {
+            this.source.close();
+        };
+
+    }
+
+    window.onload = () => {
+        loadScript();
+        start();
+    };
+</script>
+
+</html>
+``` 
+정말 불품없지만 앞으로 하나씩 붙여나간다는 생각으로 시작한다.       
+
+그리고 DeliveryController를 하나를 만들것이다.
+
+```$xslt
+package io.basquiat.delivery.web;
+
 import lombok.AllArgsConstructor;
-import org.springframework.data.r2dbc.core.DatabaseClient;
-import org.springframework.data.r2dbc.core.ReactiveDataAccessStrategy;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
+import java.time.Duration;
 
-import static org.springframework.data.r2dbc.query.Criteria.where;
-import static org.springframework.data.relational.core.query.Update.update;
-
-
+/**
+ *
+ * Server Sent-Event Controller
+ *
+ * created by basquiat
+ *
+ */
+@RestController
+@RequestMapping("/delivery")
 @AllArgsConstructor
-public class UserRepositoryImpl implements CustomUserRepository {
-
-    private final DatabaseClient query;
-    private final ReactiveDataAccessStrategy dataAccessStrategy;
-
-    @Override
-    public Flux<User> findAllUser() {
-        return query.select()
-                    .from("basquiat_user")
-                    .as(User.class)
-                    .fetch()
-                    .all();
-    }
-
-    @Override
-    public Flux<User> findAllUserProjection() {
-        return query.select()
-                    .from("basquiat_user")
-                    .as(User.class)
-                    .project("user_name", "user_age")
-                    .fetch()
-                    .all();
-    }
-
-    @Override
-    public Mono<User> createUser(User user) {
-        return query.insert()
-                    .into(User.class)
-                    .using(user)
-                    .map(this.dataAccessStrategy.getConverter().populateIdIfNecessary(user))
-                    .first()
-                    .defaultIfEmpty(user);
-    }
-
-    @Override
-    public Mono<User> updateUser(User user) {
-        return query.update()
-                    .table(User.class)
-                    .using(user)
-                    .then()
-                    .then(Mono.just(user));
-    }
-
-    @Override
-    public Mono<User> updateUserByUntyped(User user) {
-        return query.update()
-                    .table("basquiat_user")
-                    .using(update("user_name", user.getName()).set("user_age", user.getAge()))
-                    .matching(where("id").is(user.getId()))
-                    .then()
-                    .then(Mono.just(user));
-    }
-
-
-    @Override
-    public Mono<Void> removeUser(long id) {
-        return query.delete()
-                    .from(User.class)
-                    .matching(where("id").is(id))
-                    .then();
+@Slf4j
+public class DeliveryController {
+    
+    /**
+     * 10초마다 정보를 반환한다.
+     * @return Flux<String>
+     */
+    @GetMapping(path = "/event", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<String> streamFlux() {
+        log.info("Server Sent Event Ready!");
+        return Flux.interval(Duration.ofSeconds(10))
+                   .flatMap(sequence -> Flux.just("test_" + sequence));
     }
 
 }
 ```
-커스텀 레파지토리를 작성할 때 해당 레파지토리를 구현하는 클래스 이름 마지막에는 Impl을 붙여야 한다.      
+코드는 10초마다 스트링 값을 클라이언트로 보내는 설정이다. 이때 produces = MediaType.TEXT_EVENT_STREAM_VALUE 옵션을 설정해 준다.      
 
-은근히 모르는 분들 많은데 이것은 spring-data에서 the-custom-interface-name-with-an-additional-Impl-suffix때문이다.    
+ViewController에서 딱히 경로를 주지 않았기 때문에 [View](http://localhost:8080/)로 접속해 보자.    
 
-basquiat_user table DDL
+![실행이미지](https://github.com/basquiat78/WebFlux-R2DBC/blob/1.혼자서북치고장구치기/capture/capture10.png)       
+
+이미지처럼 10초마다 값을 찍는 것을 확인할 수 있다.      
+
+자 그러면 SSE가 뭔지 살짝 감이 올 것이다. 웹소켓과는 다르긴 하지만 실제로 나는 이것을 푸시 알람으로 사용했었다.      
+
+하지만 이것은 뭔가 현실적이지 않다.     
+
+10초마다라는 제약이 있는데 그러면 어떤 이벤트가 들어올 때, 즉 그러니깐 레디스를 통해서 publish 이벤트가 발생하면 subscribe해서 값을 던져줄 수 없을까?           
+
+당연히 있다.     
+
+예전에는 푸시알람 구현시에 SSEEmitter를 구현하는 방식으로 복잡하게 꼬아서 작업했는데 단지 리스너하나만 구현해서 쉽게 사용할 수 있다.      
+
+우리는 ReactiveRedisConfig클래스에서 ReactiveRedisMessageListenerContainer을 @Bean으로 등록을 했는데 이제부터 이것을 사용할 것이다.     
+
+## 시나리오     
+현재 이 프로젝트의 시나리오는 다음과 같다.      
+
+1. 점주분이 라이더에게 배달 요청을 보낸다. 배달 정보는 city, street, zipCode를 담고 있는 Delivery클래스를 참조하며 ticketId는 서버에서 UUID로 생성한다.    
+
+2. 요청을 받은 컨트롤로는 해당 정보를 redis에 담고 ReactiveRedisConfig에서 설정한 토픽채널 delivery로 ticketId와 함께 publish한다.      
+
+3. SSE가 이 메세지를 받으면 레디스에서 넘어온 ticketId로 레디스에서 정보를 가져 와서 화면에 정보를 뿌린다.       
+
+자 그럼 이제부터 Service를 하나 만들어 보자.
+
+DeliveryService
 
 ```
-CREATE TABLE basquiat_user
-(
-    id serial NOT NULL,
-	user_name character varying(255),
-    user_age integer,
-    CONSTRAINT basquiat_item_pkey PRIMARY KEY (id)
-)
-```
-다음 스크립트를 실행해서 테이블을 하나 만든다.
+package io.basquiat.delivery.service;
 
-**UserService**
-
-```
-package io.basquiat.user.service;
-
-import io.basquiat.user.model.User;
-import io.basquiat.user.repo.UserRepository;
+import io.basquiat.delivery.model.Delivery;
 import lombok.AllArgsConstructor;
+import org.springframework.data.redis.connection.ReactiveSubscription;
+import org.springframework.data.redis.core.ReactiveRedisOperations;
+import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.data.redis.listener.ReactiveRedisMessageListenerContainer;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-@Service("userService")
+import java.time.Duration;
+import java.util.UUID;
+
+@Service("deliveryService")
 @AllArgsConstructor
-public class UserService {
+public class DeliveryService {
 
-    private final UserRepository userRepo;
+    /** ReactiveRedisConfig에서 등록한 빈들을 주입 */
+    private final ReactiveRedisOperations<String, Delivery> deliveryOps;
+
+    private final ReactiveRedisTemplate<String, String> reactiveTemplate;
+
+    private final ReactiveRedisMessageListenerContainer reactiveMsgListenerContainer;
+
+    private final ChannelTopic topic;
 
     /**
-     * ReactiveCrudRepository의 findAll을 이용한 사용자 가져오기
-     * @return Flux<User>
+     * 배달 요청을 처리하는 서비스
+     * @param delivery
+     * @return Mono<Delivery>
      */
-    public Flux<User> findAll() {
-        return userRepo.findAll();
+    public Mono<Delivery> orderDelivery(Delivery delivery) {
+        /*
+            1. UUID로 ticketId발급
+            2. ticketId를 키로 delivery정보를 레디스에 넣는다. expired는 10초
+            3. 그 다음에 reactiveTemplate를 통해 토픽 채널로 ticketId를 담아 publish한다.
+            4. 그리고 ticketId가 세팅된 delivery객체를 다시 반환한다.
+         */
+        delivery.setTicketId(UUID.randomUUID().toString());
+        return deliveryOps.opsForValue().set(delivery.getTicketId(), delivery, Duration.ofSeconds(10))
+                          .doOnNext(next -> reactiveTemplate.convertAndSend(topic.getTopic(), delivery.getTicketId()).subscribe())
+                          .then(Mono.just(delivery));
     }
 
     /**
-     * 커스텀 레파지토리를 이용한 사용자 가져오기
-     * @return Flux<User>
+     * reactiveMsgListenerContainer에 등록된 채널로 publish event가 발생하면 subscribe하다가 이벤트 감지하는 서비스
+     * @return Flux<Delivery>
      */
-    public Flux<User> customFindAll() {
-        return userRepo.findAllUser();
-    }
-
-    /**
-     * 커스텀 레파지토리를 이용해 프로젝션으로 사용자 가져오기
-     * @return Flux<User>
-     */
-    public Flux<User> customFindAllProjection() {
-        return userRepo.findAllUserProjection();
-    }
-
-    /**
-     * ReactiveCrudRepository의 save을 이용한 사용자 수정하기
-     * @param user
-     * @return Mono<User>
-     */
-    public Mono<User> createUser(User user) {
-        return userRepo.save(user);
-    }
-
-    /**
-     * 커스텀 레파지토리를 이용한 사용자 저장하기
-     * @param user
-     * @return Mono<User>
-     */
-    public Mono<User> customCreateUser(User user) {
-        return userRepo.createUser(user);
-    }
-
-    /**
-     * ReactiveCrudRepository의 save(update)을 이용한 사용자 수정하기
-     * @param user
-     * @return Mono<User>
-     */
-    public Mono<User> updateUser(User user) {
-        return userRepo.save(user);
-    }
-
-    /**
-     * 커스텀 레파지토리를 이용한 사용자 수정하기
-     * @param user
-     * @return Mono<User>
-     */
-    public Mono<User> customUpdateUser(User user) {
-        return userRepo.updateUser(user);
-    }
-
-    /**
-     * 커스텀 레파지토리를 이용한 사용자 수정하기 (Untyped)
-     * @param user
-     * @return Mono<User>
-     */
-    public Mono<User> customUpdateUserByUntyped(User user) {
-        return userRepo.updateUserByUntyped(user);
-    }
-
-    /**
-     * ReactiveCrudRepository의 delete를 이용한 사용자 삭제
-     * @param user
-     * @return Mono<Void>
-     */
-    public Mono<Void> deleteUser(User user) {
-        return userRepo.delete(user);
-    }
-
-    /**
-     * 커스텀 레파지토리를 이용한 사용자 삭제
-     * @param id
-     * @return Mono<Void>
-     */
-    public Mono<Void> customDeleteUser(long id) {
-        return userRepo.removeUser(id);
+    public Flux<Delivery> deliveryListner() {
+        /*
+            1. topic의 채널을 subscribe하고 있다.
+            2. ReactiveSubscription객체로부터 넘어온 메세지를 가져온다.
+            3. ticketId가 넘어오면 그 키로 레디스에서 해당 정보를 가져와 반환한다.
+         */
+        return reactiveMsgListenerContainer.receive(topic)
+                                           .map(ReactiveSubscription.Message::getMessage)
+                                           .flatMap(key -> Flux.from(deliveryOps.opsForValue().get(key)));
     }
 
 }
 ```
-Controller를 생성하기 전에 해당 서비스에 대한 코드가 생각한 대로 돌아가는지 테스트코드로 검증을 해봐야 한다.      
+위에 각 메소드마다 주석으로 설명을 좀 세세하게 달아놨다.      
 
-**UserServiceTest**
+이제 DeliveryServiceTest코드를 작성한다.
 
 ```
-package io.basquiat;
+package io.basquiat.delivery.test;
 
-import io.basquiat.user.model.User;
-import io.basquiat.user.service.UserService;
+import io.basquiat.delivery.model.Delivery;
+import io.basquiat.delivery.service.DeliveryService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
-import org.springframework.test.web.reactive.server.WebTestClient;
-import org.springframework.web.reactive.function.BodyInserters;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 @ExtendWith(SpringExtension.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class UserServiceTest {
+public class DeliveryServiceTest {
 
     @Autowired
-    private UserService userService;
-
-    //@Test
-    void testInsertUser() {
-        User newUser = User.builder().name("사이먼 도미닉").age(36).build();
-        Mono<User> mono = userService.createUser(newUser);
-        StepVerifier.create(mono)
-                    .assertNext(user-> assertThat(user.getId()).isEqualTo(1L))
-                    .verifyComplete();
-    }
-
-    //@Test
-    void testCustomInsertUser() {
-        User newUser = User.builder().name("Simon Dominic").age(36).build();
-        Mono<User> mono = userService.customCreateUser(newUser);
-        StepVerifier.create(mono)
-                    .assertNext(user-> assertThat(user.getId()).isEqualTo(2L))
-                    .verifyComplete();
-    }
-
-    //@Test
-    void testFindAll() {
-        Flux<User> flux = userService.findAll();
-        StepVerifier.create(flux)
-                    .assertNext(user-> assertThat(user.getName()).isEqualTo("사이먼 도미닉"))
-                    .assertNext(user-> assertThat(user.getName()).isEqualTo("Simon Dominic"))
-                    .verifyComplete();
-    }
-
-    //@Test
-    void testCustomFindAll() {
-        Flux<User> flux = userService.customFindAll();
-        StepVerifier.create(flux)
-                    .assertNext(user-> assertThat(user.getName()).isEqualTo("사이먼 도미닉"))
-                    .assertNext(user-> assertThat(user.getName()).isEqualTo("Simon Dominic"))
-                    .verifyComplete();
-    }
-
-    //@Test
-    void testCustomFindAllProjection() {
-        Flux<User> flux = userService.customFindAllProjection();
-        StepVerifier.create(flux)
-                    .assertNext(user-> assertThat(user.getName()).isEqualTo("사이먼 도미닉"))
-                    .assertNext(user-> assertThat(user.getName()).isEqualTo("Simon Dominic"))
-                    .verifyComplete();
-    }
-
-    //@Test
-    void testUpdateUser() {
-        User updateUser = User.builder().id(1L).name("쌈디").age(36).build();
-        Mono<User> mono = userService.updateUser(updateUser);
-        StepVerifier.create(mono)
-                    .assertNext(user-> assertThat(user.getName()).isEqualTo("쌈디"))
-                    .verifyComplete();
-    }
-
-    //@Test
-    void testCustomUpdateUser() {
-        User updateUser = User.builder().id(1L).name("정기석").age(36).build();
-        Mono<User> mono = userService.customUpdateUser(updateUser);
-        StepVerifier.create(mono)
-                    .assertNext(user-> assertThat(user.getName()).isEqualTo("정기석"))
-                    .verifyComplete();
-    }
-
-    //@Test
-    void testCustomUpdateUserByUntyped() {
-        User updateUser = User.builder().id(1L).name("사이먼 도미닉").age(36).build();
-        Mono<User> mono = userService.customUpdateUserByUntyped(updateUser);
-        StepVerifier.create(mono)
-                    .assertNext(user-> assertThat(user.getName()).isEqualTo("사이먼 도미닉"))
-                    .verifyComplete();
-    }
-
-    //@Test
-    void testDeleteUser() {
-        User deleteUser = User.builder().id(1L).name("사이먼 도미닉").age(36).build();
-        Mono<Void> mono = userService.deleteUser(deleteUser);
-        StepVerifier.create(mono)
-                    .verifyComplete();
-    }
+    private DeliveryService deliveryService;
 
     @Test
-    void testCustomDeleteUser() {
-        Mono<Void> mono = userService.customDeleteUser(2L);
-        StepVerifier.create(mono)
-                    .verifyComplete();
+    void givenOrderDelivery() {
+        Delivery delivery = Delivery.builder().city("서울").street("논현동").zipCode("5000").build();
+        deliveryService.orderDelivery(delivery).subscribe(System.out::println);
     }
 
 }
 ```
-검증이 완료되면 콘트롤러를 작성하자.
+테스트 전에 해야 할 일은 다음과 같다.     
 
-**UserController**
+1. medis에서 terminal을 클릭한다.      
+
+2. 터미널에서 subscribe delivery을 입력한다. 채널 설정이 delivery이니 이 채널을 구독하는 것이다.     
+
+![실행이미지](https://github.com/basquiat78/WebFlux-R2DBC/blob/1.혼자서북치고장구치기/capture/capture11.png)       
+
+이미지처럼 subscribe 모드로 돌입한 것을 알 수 있다.      
+
+그리고 테스트를 실행하게 되면 
+
+![실행이미지](https://github.com/basquiat78/WebFlux-R2DBC/blob/1.혼자서북치고장구치기/capture/capture12.png)      
+
+이미지처럼 보내진 메세지 이벤트를 받아서 출력하고 그 티켓 아이디로 정보가 생성된 것을 볼 수 있다.           
+
+사실 SSE Controller레벨 테스트하는 방법을 찾지 못해서 바로 나머지 서비스와 컨트롤러를 작성해서 실제로 테스트를 해보자.     
+
+지금까지의 DelvierySevice는 다음과 같다.
 
 ```
-package io.basquiat.user.web;
+package io.basquiat.delivery.service;
 
-import io.basquiat.user.model.User;
-import io.basquiat.user.service.UserService;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
+import io.basquiat.delivery.model.Delivery;
 import lombok.AllArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.util.Assert;
+import org.springframework.data.redis.connection.ReactiveSubscription;
+import org.springframework.data.redis.core.ReactiveRedisOperations;
+import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.data.redis.listener.ReactiveRedisMessageListenerContainer;
+import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+
+import java.time.Duration;
+import java.util.UUID;
+
+@Service("deliveryService")
+@AllArgsConstructor
+public class DeliveryService {
+
+    /** ReactiveRedisConfig에서 등록한 빈들을 주입 */
+    private final ReactiveRedisOperations<String, Delivery> deliveryOps;
+
+    private final ReactiveRedisTemplate<String, String> reactiveTemplate;
+
+    private final ReactiveRedisMessageListenerContainer reactiveMsgListenerContainer;
+
+    private final ChannelTopic topic;
+
+    /**
+     * 배달 요청을 처리하는 서비스
+     * @param delivery
+     * @return Mono<Delivery>
+     */
+    public Mono<Delivery> orderDelivery(Delivery delivery) {
+        /*
+            1. UUID로 ticketId발급
+            2. ticketId를 키로 delivery정보를 레디스에 넣는다. expired는 10초
+            3. 그 다음에 reactiveTemplate를 통해 토픽 채널로 ticketId를 담아 publish한다.
+            4. 그리고 ticketId가 세팅된 delivery객체를 다시 반환한다.
+         */
+        delivery.setTicketId(UUID.randomUUID().toString());
+        return deliveryOps.opsForValue().set(delivery.getTicketId(), delivery, Duration.ofSeconds(10))
+                          .doOnNext(next -> reactiveTemplate.convertAndSend(topic.getTopic(), delivery.getTicketId()).subscribe())
+                          .then(Mono.just(delivery));
+    }
+
+    /**
+     * reactiveMsgListenerContainer에 등록된 채널로 publish event가 발생하면 subscribe하다가 이벤트 감지하는 서비스
+     * @return Flux<Delivery>
+     */
+    public Flux<Delivery> deliveryListner() {
+        /*
+            1. topic의 채널을 subscribe하고 있다.
+            2. ReactiveSubscription객체로부터 넘어온 메세지를 가져온다.
+            3. ticketId가 넘어오면 그 키로 레디스에서 해당 정보를 가져와 반환한다.
+         */
+        return reactiveMsgListenerContainer.receive(topic)
+                                           .map(ReactiveSubscription.Message::getMessage)
+                                           .flatMap(key -> Flux.from(deliveryOps.opsForValue().get(key)));
+    }
+
+}
+```     
+시나리오대로 요청을 받으면 레디스에 발급한 티켓아이디를 키값으로 정보를 저장하고 해당 키를 메제시지로 delivery채널에 publish가 있다.       
+
+그리고 하나는 리스너로 delivery채널에 pub event가 발생하면 key를 받아서 레디스에서 해당 키에 대한 delivery정보를 받아온다.      
+
+그리고 DeliveryController은 다음과 같이 작성한다. 
+
+```
+package io.basquiat.delivery.web;
+
+import io.basquiat.delivery.model.Delivery;
+import io.basquiat.delivery.service.DeliveryService;
+import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+/**
+ *
+ * Server Sent-Event Controller
+ *
+ * created by basquiat
+ *
+ */
 @RestController
-@RequestMapping("/v1")
+@RequestMapping("/delivery")
 @AllArgsConstructor
-@Api(value = "User Controller", tags = {"User Controller"})
-public class UserController {
+@Slf4j
+public class DeliveryController {
 
-    private final UserService userService;
+    private final DeliveryService deliveryService;
 
-    @PostMapping("/user")
-    @ApiOperation(value = "사용자 생성 API")
-    @ResponseStatus(HttpStatus.CREATED)
-    public Mono<User> createUser(@RequestBody User user) {
-        Assert.notNull(user, "must be user");
-        return userService.createUser(user);
+    @PostMapping("")
+    public Mono<Delivery> orderDelivery(@RequestBody Delivery delivery) {
+        return deliveryService.orderDelivery(delivery);
     }
 
-    @PostMapping("/customuser")
-    @ApiOperation(value = "사용자 생성 API")
-    @ResponseStatus(HttpStatus.CREATED)
-    public Mono<User> customCreateUser(@RequestBody User user) {
-        Assert.notNull(user, "must be user");
-        return userService.customCreateUser(user);
-    }
-
-    @GetMapping("/user")
-    @ApiOperation(value = "사용자 조회 API")
-    @ResponseStatus(HttpStatus.OK)
-    public Flux<User> findAll() {
-        return userService.findAll();
-    }
-
-    @GetMapping("/customuser")
-    @ApiOperation(value = "사용자 조회 API")
-    @ResponseStatus(HttpStatus.OK)
-    public Flux<User> customFindAll() {
-        return userService.customFindAll();
-    }
-
-    @GetMapping("/customuser/projection")
-    @ApiOperation(value = "사용자 조회 API")
-    @ResponseStatus(HttpStatus.OK)
-    public Flux<User> customFindAllProjection() {
-        return userService.customFindAllProjection();
-    }
-
-    @PatchMapping("/user")
-    @ApiOperation(value = "사용자 수정 API")
-    @ResponseStatus(HttpStatus.OK)
-    public Mono<User> update(@RequestBody User user) {
-        Assert.notNull(user, "must be user");
-        return userService.updateUser(user);
-    }
-
-    @PatchMapping("/customuser")
-    @ApiOperation(value = "사용자 수정 API")
-    @ResponseStatus(HttpStatus.OK)
-    public Mono<User> customUpdate(@RequestBody User user) {
-        Assert.notNull(user, "must be user");
-        return userService.customUpdateUser(user);
-    }
-
-    @PatchMapping("/customuser/untyped")
-    @ApiOperation(value = "사용자 수정 API")
-    @ResponseStatus(HttpStatus.OK)
-    public Mono<User> customUpdateByUntyped(@RequestBody User user) {
-        Assert.notNull(user, "must be user");
-        return userService.customUpdateUserByUntyped(user);
-    }
-
-    @DeleteMapping("/user")
-    @ApiOperation(value = "사용자 삭제 API")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public Mono<Void> deleteUser(@RequestBody User user) {
-        Assert.notNull(user, "must be user");
-        return userService.deleteUser(user);
-    }
-
-    @DeleteMapping("/user/{id}")
-    @ApiOperation(value = "사용자 삭제 API")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public Mono<Void> deleteUser(@PathVariable(value = "id", required = true) long id) {
-        Assert.notNull(id, "must be user id");
-        return userService.customDeleteUser(id);
+    @GetMapping(path = "/event/{street}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<Delivery> streamFlux(@PathVariable("street") String street) {
+        log.info("Server Side Event Ready!" + street);
+        return deliveryService.deliveryListner();
     }
 
 }
 ```
-가장 일반적인 방식이다. RouteFuntional방식도 좋긴 하지만 Swagger설정이 안되는거 같다.      
+SSE에서 PathVariable로 변수 하나를 받는 것이 눈에 보이는데 이것은 다음과 같이 사용하기 위해서이다.      
 
-현재 이 프로젝트의 스웨거 주소는 다음과 간다.    
-
-[localhost swagger](http://localhost:8080/documentation/swagger-ui/)    
-
-그러면 이제 WebTestClient를 이용해 콘트롤러에 대한 테스트 코드 작성을 해보자.     
-
-**UserControllerTest**
+ViewController 수정
 
 ```
-package io.basquiat;
+package io.basquiat.view;
 
-import io.basquiat.user.model.User;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpMethod;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+
+/**
+ *
+ * View Controller
+ *
+ * created by basquiat
+ *
+ */
+@Controller
+public class ViewController {
+
+    /**
+     * index html render controller
+     * @param model
+     * @return String
+     */
+    @GetMapping("/view/{street}")
+    public String index(@PathVariable("street") String street, final Model model) {
+        model.addAttribute("street", street);
+        return "index";
+    }
+
+}
+```
+
+라이더는 자신의 위치에 맞는 정보만 받아야 하기 때문에 index.ftl을 좀 수정하자.
+
+```
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+	<div class="container">
+	    <div>
+	        <div id="title">
+	            <h1>Spring WebFlux Server Sent-Events</h1>
+	        </div>
+	        <div id="sse"></div>
+	    </div>
+	</div>
+</body>
+
+<script>
+    let source;
+    let path = '${street}';
+    console.log(path)
+    function loadScript () {
+        source = new EventSource("http://localhost:8080/delivery/event/"+path);
+    }
+
+    function start() {
+        source.onmessage = event => {
+            let data = event.data;
+            let div = document.getElementById('sse');
+            div.innerHTML += "<div> Server Sent-Event Info : " + data + "</div>";
+        };
+
+        source.onerror = () => {
+            this.close();
+        };
+        source.stop = () => {
+            this.source.close();
+        };
+
+    }
+
+    window.onload = () => {
+        loadScript();
+        start();
+    };
+</script>
+
+</html>
+```
+당연히 DeliveryController, DeliveryService도 수정해야 한다.
+
+최종 DeliveryController
+
+```
+package io.basquiat.delivery.web;
+
+import io.basquiat.delivery.model.Delivery;
+import io.basquiat.delivery.service.DeliveryService;
+import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
-import org.springframework.test.web.reactive.server.WebTestClient;
-import org.springframework.web.reactive.function.BodyInserters;
+import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-@ExtendWith(SpringExtension.class)
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class UserControllerTest {
+/**
+ *
+ * Server Sent-Event Controller
+ *
+ * created by basquiat
+ *
+ */
+@RestController
+@RequestMapping("/delivery")
+@AllArgsConstructor
+@Slf4j
+public class DeliveryController {
 
-    @Autowired
-    private WebTestClient webTestClient;
+    private final DeliveryService deliveryService;
 
-    //@Test
-    void testInsertUser() {
-        User newUser = User.builder().name("이센스111").age(33).build();
-        webTestClient.post()
-                     .uri("/v1/user")
-                     .contentType(MediaType.APPLICATION_JSON)
-                     .accept(MediaType.APPLICATION_JSON)
-                     .body(Mono.just(newUser), User.class)
-                     .exchange()
-                     .expectStatus().isCreated()
-                     .expectHeader().contentType(MediaType.APPLICATION_JSON)
-                     .expectBody()
-                     .jsonPath("$.id").isEqualTo(1);
+    @PostMapping("")
+    public Mono<Delivery> orderDelivery(@RequestBody Delivery delivery) {
+        return deliveryService.orderDelivery(delivery);
     }
 
-    //@Test
-    void testCustomInsertUser() {
-        User newUser = User.builder().name("이센스111").age(33).build();
-        webTestClient.post()
-                     .uri("/v1/customuser")
-                     .contentType(MediaType.APPLICATION_JSON)
-                     .accept(MediaType.APPLICATION_JSON)
-                     .body(Mono.just(newUser), User.class)
-                     .exchange()
-                     .expectStatus().isCreated()
-                     .expectHeader().contentType(MediaType.APPLICATION_JSON)
-                     .expectBody()
-                     .jsonPath("$.id").isEqualTo(2);
-    }
-
-    //@Test
-    void testFindAll() {
-        webTestClient.get().uri("/v1/user")
-                           .exchange()
-                           .expectStatus().isOk()
-                           .expectBodyList(User.class).hasSize(2);
-    }
-
-    //@Test
-    void testCustomFindAll() {
-        webTestClient.get().uri("/v1/customuser")
-                .exchange()
-                .expectStatus().isOk()
-                .expectBodyList(User.class).hasSize(3); // 실패를 예상한다.
-    }
-
-    //@Test
-    void testCustomFindAllProjection() {
-        webTestClient.get().uri("/v1/customuser/projection")
-                .exchange()
-                .expectStatus().isOk()
-                .expectBodyList(User.class).hasSize(2); // 실패를 예상한다.
-    }
-
-    //@Test
-    void testUpdateUser() {
-        User updateUser = User.builder().id(2L).name("e-sense").age(33).build();
-
-        webTestClient.patch().uri("/v1/user")
-                             .contentType(MediaType.APPLICATION_JSON)
-                             .accept(MediaType.APPLICATION_JSON)
-                             .body(Mono.just(updateUser), User.class)
-                             .exchange()
-                             .expectStatus().isOk()
-                             .expectHeader().contentType(MediaType.APPLICATION_JSON)
-                             .expectBody()
-                             .jsonPath("$.name").isEqualTo("e-sense");
-    }
-
-    //@Test
-    void testCustomUpdateUser() {
-        User updateUser = User.builder().id(2L).name("E-SENSE").age(32).build();
-
-        webTestClient.patch().uri("/v1/customuser")
-                             .contentType(MediaType.APPLICATION_JSON)
-                             .accept(MediaType.APPLICATION_JSON)
-                             .body(Mono.just(updateUser), User.class)
-                             .exchange()
-                             .expectStatus().isOk()
-                             .expectHeader().contentType(MediaType.APPLICATION_JSON)
-                             .expectBody()
-                             .jsonPath("$.name").isEqualTo("E-SENSE");
-    }
-
-    //@Test
-    void testCustomUpdateUserByUntyped() {
-        User updateUser = User.builder().id(2L).name("ESENSE").age(33).build();
-
-        webTestClient.patch().uri("/v1/customuser/untyped")
-                             .contentType(MediaType.APPLICATION_JSON)
-                             .accept(MediaType.APPLICATION_JSON)
-                             .body(Mono.just(updateUser), User.class)
-                             .exchange()
-                             .expectStatus().isOk()
-                             .expectHeader().contentType(MediaType.APPLICATION_JSON)
-                             .expectBody()
-                             .jsonPath("$.name").isEqualTo("ESENSE");
-    }
-
-    //@Test
-    void testDeleteUser() {
-        User updateUser = User.builder().id(2L).name("ESENSE").age(33).build();
-        webTestClient.method(HttpMethod.DELETE)
-                     .uri("/v1/user")
-                     .body(BodyInserters.fromProducer(Mono.just(updateUser), User.class))
-                     .exchange()
-                     .expectStatus().isNoContent()
-                     .expectBody().isEmpty();
-
-    }
-
-    @Test
-    void testCustomDeleteUser() {
-        webTestClient.delete()
-                     .uri("/v1/user/{id}", 1L)
-                     .exchange()
-                     .expectStatus().isNoContent()
-                     .expectBody().isEmpty();
+    @GetMapping(path = "/event/{street}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<Delivery> streamFlux(@PathVariable("street") String street) {
+        log.info("Server Side Event Ready!" + street);
+        return deliveryService.deliveryListner(street);
     }
 
 }
 ```
 
-# At A Glance      
-사실 비동기가 대세라고 무조건 WebFlux해야지 이런건 아닌거 같다.      
+최종 DeliveryService
 
-모든 것은 쓰임새가 있고 그에 맞춰서 잘 사용하는게 최고인거 같은데 일단 R2DBC는 모든 것을 완벽하게 운영에 사용하기엔 무리수가 있다.     
+```
+package io.basquiat.delivery.service;
 
-그리고 JPA를 생각했던 분이라면 모양만 비슷하지 완전 다르다.     
+import io.basquiat.delivery.model.Delivery;
+import lombok.AllArgsConstructor;
+import org.springframework.data.redis.connection.ReactiveSubscription;
+import org.springframework.data.redis.core.ReactiveRedisOperations;
+import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.data.redis.listener.ReactiveRedisMessageListenerContainer;
+import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-그래서 만일 정말 spring-data-jpa와 WebFlux를 써야한다면 그냥 fromCallable을 이용하는게 속 편하다.     
+import java.time.Duration;
+import java.util.UUID;
 
-그리고 해당 프로젝트 issue를 살펴보면 애초에 이들은 JPA를 염두하고 있지도 않은 거 같다.     
+@Service("deliveryService")
+@AllArgsConstructor
+public class DeliveryService {
 
-특히 Lazy Loading과 relation에 대해서 그와 관련 장황하게 설명한 글이 있는데 그냥 느낌상으로는 그렇게구나 하는 생각이 든다.     
+    /** ReactiveRedisConfig에서 등록한 빈들을 주입 */
+    private final ReactiveRedisOperations<String, Delivery> deliveryOps;
 
-또한 Aggregation과 관련해서 좀 불편하다. 엔티티 내부에 컬렉션 타입을 지원하지 않는다.          
+    private final ReactiveRedisTemplate<String, String> reactiveTemplate;
 
-생각같아선 myBatis처럼 지원이라도 해주면 참 좋겠구먼.... mapper을 만들어야 하는게 큰 단점이다.          
+    private final ReactiveRedisMessageListenerContainer reactiveMsgListenerContainer;
 
-그리고 몇 가지 converter도 제대로 지원하지 않아 커스터마이징을 해야하는 단계이다.          
+    private final ChannelTopic topic;
 
-어쨰든 이 레파지토리는 몇가지 주제를 가지고 개발을 해볼까 한다.      
+    /**
+     * 배달 요청을 처리하는 서비스
+     * @param delivery
+     * @return Mono<Delivery>
+     */
+    public Mono<Delivery> orderDelivery(Delivery delivery) {
+        /*
+            1. UUID로 ticketId발급
+            2. ticketId를 키로 delivery정보를 레디스에 넣는다. expired는 10초
+            3. 그 다음에 reactiveTemplate를 통해 토픽 채널로 ticketId를 담아 publish한다.
+            4. 그리고 ticketId가 세팅된 delivery객체를 다시 반환한다.
+         */
+        delivery.setTicketId(UUID.randomUUID().toString());
+        return deliveryOps.opsForValue().set(delivery.getTicketId(), delivery, Duration.ofSeconds(10))
+                          .doOnNext(next -> reactiveTemplate.convertAndSend(topic.getTopic(), delivery.getTicketId()).subscribe())
+                          .then(Mono.just(delivery));
+    }
 
-여기서 테스트한 예제들은 차후 사용하지 않을 수 있다. 다만 어떤 방식으로 개발을 할 수 있는지, 테스트를 어떻게 해야 하는지에 대한 단초만 제공한다.     
+    /**
+     * reactiveMsgListenerContainer에 등록된 채널로 publish event가 발생하면 subscribe하다가 이벤트 감지하는 서비스
+     * @return Flux<Delivery>
+     */
+    public Flux<Delivery> deliveryListner(String street) {
+        /*
+            1. topic의 채널을 subscribe하고 있다.
+            2. ReactiveSubscription객체로부터 넘어온 메세지를 가져온다.
+            3. ticketId가 넘어오면 그 키로 레디스에서 해당 정보를 가져온다.
+            4. 라이더가 위치한 street의 delivery정보인지 추려낸다.
+         */
+        return reactiveMsgListenerContainer.receive(topic)
+                                           .map(ReactiveSubscription.Message::getMessage)
+                                           .flatMap(key -> Flux.from(
+                                                                        deliveryOps.opsForValue()
+                                                                                   .get(key)
+                                                                                   .filter(d -> d.getStreet().equals(street))
+                                                                     )
+                                            );
+    }
 
-p.s. 궁금한 점은 issue 또는 funnyjazz@naver.com으로 문의주세요.
+}
+```
+
+자 이제 실행을 하고 라이더는 자신의 위치에 따라서 다음과 같이 접속을 한다.
+
+[논현1동에 있는 라이더](http://localhost:8080/view/논현1동)     
+
+[청담동에 있는 라이더](http://localhost:8080/view/청담동)     
+
+[Swagger에서 테스트하자](http://localhost:8080/documentation/swagger-ui/#/delivery-controller/orderDeliveryUsingPOST)     
+
+스웨거로 들어가서 다음과 
+
+![실행이미지](https://github.com/basquiat78/WebFlux-R2DBC/blob/1.혼자서북치고장구치기/capture/capture13.png)      
+
+처럼 street정보를 바꿔가면서 테스트를 막 눌러보자.      
+
+postman으로 테스트해도 무방하다.       
+
+스크립트로 연속적인 요청을 원하면 스크립트로 curl로 보내도 된다.       
+
+![실행이미지](https://github.com/basquiat78/WebFlux-R2DBC/blob/1.혼자서북치고장구치기/capture/capture14.png)      
+
+이미지처럼 필터링을 통해서 자신이 접속한 지역의 배달 요청 정보만 받을 수 있게 되었다.       

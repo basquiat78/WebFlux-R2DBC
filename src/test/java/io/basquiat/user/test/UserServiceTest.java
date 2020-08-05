@@ -1,4 +1,4 @@
-package io.basquiat;
+package io.basquiat.user.test;
 
 import io.basquiat.user.model.User;
 import io.basquiat.user.service.UserService;
@@ -6,11 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
-import org.springframework.test.web.reactive.server.WebTestClient;
-import org.springframework.web.reactive.function.BodyInserters;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -25,7 +21,7 @@ class UserServiceTest {
     private UserService userService;
 
     //@Test
-    void testInsertUser() {
+    void givenInsertUser() {
         User newUser = User.builder().name("사이먼 도미닉").age(36).build();
         Mono<User> mono = userService.createUser(newUser);
         StepVerifier.create(mono)
@@ -34,7 +30,7 @@ class UserServiceTest {
     }
 
     //@Test
-    void testCustomInsertUser() {
+    void givenCustomInsertUser() {
         User newUser = User.builder().name("Simon Dominic").age(36).build();
         Mono<User> mono = userService.customCreateUser(newUser);
         StepVerifier.create(mono)
@@ -43,7 +39,7 @@ class UserServiceTest {
     }
 
     //@Test
-    void testFindAll() {
+    void givenFindAll() {
         Flux<User> flux = userService.findAll();
         StepVerifier.create(flux)
                     .assertNext(user-> assertThat(user.getName()).isEqualTo("사이먼 도미닉"))
@@ -52,7 +48,7 @@ class UserServiceTest {
     }
 
     //@Test
-    void testCustomFindAll() {
+    void givenCustomFindAll() {
         Flux<User> flux = userService.customFindAll();
         StepVerifier.create(flux)
                     .assertNext(user-> assertThat(user.getName()).isEqualTo("사이먼 도미닉"))
@@ -61,7 +57,7 @@ class UserServiceTest {
     }
 
     //@Test
-    void testCustomFindAllProjection() {
+    void givenCustomFindAllProjection() {
         Flux<User> flux = userService.customFindAllProjection();
         StepVerifier.create(flux)
                     .assertNext(user-> assertThat(user.getName()).isEqualTo("사이먼 도미닉"))
@@ -70,7 +66,7 @@ class UserServiceTest {
     }
 
     //@Test
-    void testUpdateUser() {
+    void givenUpdateUser() {
         User updateUser = User.builder().id(1L).name("쌈디").age(36).build();
         Mono<User> mono = userService.updateUser(updateUser);
         StepVerifier.create(mono)
@@ -79,7 +75,7 @@ class UserServiceTest {
     }
 
     //@Test
-    void testCustomUpdateUser() {
+    void givenCustomUpdateUser() {
         User updateUser = User.builder().id(1L).name("정기석").age(36).build();
         Mono<User> mono = userService.customUpdateUser(updateUser);
         StepVerifier.create(mono)
@@ -88,7 +84,7 @@ class UserServiceTest {
     }
 
     //@Test
-    void testCustomUpdateUserByUntyped() {
+    void givenCustomUpdateUserByUntyped() {
         User updateUser = User.builder().id(1L).name("사이먼 도미닉").age(36).build();
         Mono<User> mono = userService.customUpdateUserByUntyped(updateUser);
         StepVerifier.create(mono)
@@ -97,7 +93,7 @@ class UserServiceTest {
     }
 
     //@Test
-    void testDeleteUser() {
+    void givenDeleteUser() {
         User deleteUser = User.builder().id(1L).name("사이먼 도미닉").age(36).build();
         Mono<Void> mono = userService.deleteUser(deleteUser);
         StepVerifier.create(mono)
@@ -105,7 +101,7 @@ class UserServiceTest {
     }
 
     @Test
-    void testCustomDeleteUser() {
+    void givenCustomDeleteUser() {
         Mono<Void> mono = userService.customDeleteUser(2L);
         StepVerifier.create(mono)
                     .verifyComplete();

@@ -1,4 +1,4 @@
-package io.basquiat;
+package io.basquiat.user.test;
 
 import io.basquiat.user.model.User;
 import org.junit.jupiter.api.Test;
@@ -20,7 +20,7 @@ class UserControllerTest {
     private WebTestClient webTestClient;
 
     //@Test
-    void testInsertUser() {
+    void givenInsertUser() {
         User newUser = User.builder().name("이센스111").age(33).build();
         webTestClient.post()
                      .uri("/v1/user")
@@ -35,7 +35,7 @@ class UserControllerTest {
     }
 
     //@Test
-    void testCustomInsertUser() {
+    void givenCustomInsertUser() {
         User newUser = User.builder().name("이센스111").age(33).build();
         webTestClient.post()
                      .uri("/v1/customuser")
@@ -50,7 +50,7 @@ class UserControllerTest {
     }
 
     //@Test
-    void testFindAll() {
+    void givenFindAll() {
         webTestClient.get().uri("/v1/user")
                            .exchange()
                            .expectStatus().isOk()
@@ -58,7 +58,7 @@ class UserControllerTest {
     }
 
     //@Test
-    void testCustomFindAll() {
+    void givenCustomFindAll() {
         webTestClient.get().uri("/v1/customuser")
                 .exchange()
                 .expectStatus().isOk()
@@ -66,7 +66,7 @@ class UserControllerTest {
     }
 
     //@Test
-    void testCustomFindAllProjection() {
+    void givenCustomFindAllProjection() {
         webTestClient.get().uri("/v1/customuser/projection")
                 .exchange()
                 .expectStatus().isOk()
@@ -74,7 +74,7 @@ class UserControllerTest {
     }
 
     //@Test
-    void testUpdateUser() {
+    void givenUpdateUser() {
         User updateUser = User.builder().id(2L).name("e-sense").age(33).build();
 
         webTestClient.patch().uri("/v1/user")
@@ -89,7 +89,7 @@ class UserControllerTest {
     }
 
     //@Test
-    void testCustomUpdateUser() {
+    void givenCustomUpdateUser() {
         User updateUser = User.builder().id(2L).name("E-SENSE").age(32).build();
 
         webTestClient.patch().uri("/v1/customuser")
@@ -104,7 +104,7 @@ class UserControllerTest {
     }
 
     //@Test
-    void testCustomUpdateUserByUntyped() {
+    void givenCustomUpdateUserByUntyped() {
         User updateUser = User.builder().id(2L).name("ESENSE").age(33).build();
 
         webTestClient.patch().uri("/v1/customuser/untyped")
@@ -119,7 +119,7 @@ class UserControllerTest {
     }
 
     //@Test
-    void testDeleteUser() {
+    void givenDeleteUser() {
         User updateUser = User.builder().id(2L).name("ESENSE").age(33).build();
         webTestClient.method(HttpMethod.DELETE)
                      .uri("/v1/user")
@@ -131,7 +131,7 @@ class UserControllerTest {
     }
 
     @Test
-    void testCustomDeleteUser() {
+    void givenCustomDeleteUser() {
         webTestClient.delete()
                      .uri("/v1/user/{id}", 1L)
                      .exchange()
