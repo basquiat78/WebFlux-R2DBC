@@ -12,7 +12,7 @@ INSERT INTO basquiat_user (user_name, user_age) VALUES ('사이먼 도미닉', 3
 INSERT INTO basquiat_user (user_name, user_age) VALUES ('이센스', 33);
 INSERT INTO basquiat_user (user_name, user_age) VALUES ('팔로알토', 36);
 INSERT INTO basquiat_user (user_name, user_age) VALUES ('키드밀리', 26);
-INSERT INTO basquiat_user (user_name, user_age) VALUES ('이 센', 33);
+INSERT INTO basquiat_user (user_name, user_age) VALUES ('이 센스', 33);
 ```
 일단 다음과 같이 데이터를 밀어 넣는다.
 
