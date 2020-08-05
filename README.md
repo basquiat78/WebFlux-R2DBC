@@ -4,6 +4,11 @@
 
 [혼자서북치고장구치기 1](https://github.com/basquiat78/WebFlux-R2DBC/tree/1.%ED%98%BC%EC%9E%90%EC%84%9C%EB%B6%81%EC%B9%98%EA%B3%A0%EC%9E%A5%EA%B5%AC%EC%B9%98%EA%B8%B0)
 
+# Issue 정리     
+심심해서 spring-data-jpa처럼 연쇄적으로 다이나믹하게 메소드를 생성하는것이 가능하지 않을까 해서 테스트 해보다가 되는 것을 보고 깜놀.....     
+
+관련 몇 가지 테스트는 [혼자서북치고장구치기 1](https://github.com/basquiat78/WebFlux-R2DBC/tree/1.%ED%98%BC%EC%9E%90%EC%84%9C%EB%B6%81%EC%B9%98%EA%B3%A0%EC%9E%A5%EA%B5%AC%EC%B9%98%EA%B8%B0)에서 확인 가능하다.
+
 ## Prerequisites     
 
 1. OS: macOS Catalina v10.15.5
@@ -236,16 +241,18 @@ spring.io의 Spring Data R2DBC의 일부를 발췌한 내용이다.
 
 caching, lazy loading, write behind or many other features of ORM frameworks <- NOT이라는 표현으로 강조하고 있다!!!!     
 
-비슷한 컨셉을 가지고 있다. 하지만 spring-data-jpa처럼 연쇄적인 메소드 이름으로 쿼리를 생성하는 기능을 아직까지는 지원하지 않는다.    
+~~비슷한 컨셉을 가지고 있다. 하지만 spring-data-jpa처럼 연쇄적인 메소드 이름으로 쿼리를 생성하는 기능을 아직까지는 지원하지 않는다.~~   
 
-기본적인 컨셉 가령 findById, existById, save, saveAll같은 녀석들만 지원한다.      
+~~기본적인 컨셉 가령 findById, existById, save, saveAll같은 녀석들만 지원한다.~~      
 
-언젠가는 spring-data-jpa처럼 변경될려나?      
+~~언젠가는 spring-data-jpa처럼 변경될려나?~~          
 
 ```
 findByIdAndPositionAndNameContain....()
 ```
 ~~이런거 없다.~~     
+
+위에 말이 틀렸다. 가능하다.....
 
 그리고 queryDSL이나 Criteria같은 방식의 쿼리 작성을 지원한다.      
 
