@@ -60,17 +60,17 @@ class UserControllerTest {
     //@Test
     void givenCustomFindAll() {
         webTestClient.get().uri("/v1/customuser")
-                .exchange()
-                .expectStatus().isOk()
-                .expectBodyList(User.class).hasSize(3); // 실패를 예상한다.
+                     .exchange()
+                     .expectStatus().isOk()
+                     .expectBodyList(User.class).hasSize(3); // 실패를 예상한다.
     }
 
     //@Test
     void givenCustomFindAllProjection() {
         webTestClient.get().uri("/v1/customuser/projection")
-                .exchange()
-                .expectStatus().isOk()
-                .expectBodyList(User.class).hasSize(2); // 실패를 예상한다.
+                     .exchange()
+                     .expectStatus().isOk()
+                     .expectBodyList(User.class).hasSize(2); // 실패를 예상한다.
     }
 
     //@Test
@@ -130,13 +130,32 @@ class UserControllerTest {
 
     }
 
-    @Test
-    void givenCustomDeleteUser() {
+    //@Test
+    void testCustomDeleteUser() {
         webTestClient.delete()
                      .uri("/v1/user/{id}", 1L)
                      .exchange()
                      .expectStatus().isNoContent()
                      .expectBody().isEmpty();
+    }
+
+    //@Test
+    void testFindByNameAndAge() {
+        webTestClient.get()
+                     .uri("/v1/user/{name}/{age}", "팔로알토", 36)
+                     .exchange()
+                     .expectStatus().isOk()
+                     .expectBodyList(User.class).hasSize(1);
+    }
+
+    @Test
+    void testFindByNameContaining() {
+        webTestClient.get()
+                     .uri("/v1/user/{name}", "센스")
+                     .exchange()
+                     .expectStatus().isOk()
+                     .expectBodyList(User.class).hasSize(2);
+                     //.expectBodyList(User.class).hasSize(1); //실패 예상
     }
 
 }

@@ -84,26 +84,25 @@ class UserServiceTest {
     }
 
     //@Test
-    void givenCustomUpdateUserByUntyped() {
-        User updateUser = User.builder().id(1L).name("사이먼 도미닉").age(36).build();
-        Mono<User> mono = userService.customUpdateUserByUntyped(updateUser);
+    void givenCustomDeleteUser() {
+        Mono<Void> mono = userService.customDeleteUser(2L);
         StepVerifier.create(mono)
-                    .assertNext(user-> assertThat(user.getName()).isEqualTo("사이먼 도미닉"))
                     .verifyComplete();
     }
 
     //@Test
-    void givenDeleteUser() {
-        User deleteUser = User.builder().id(1L).name("사이먼 도미닉").age(36).build();
-        Mono<Void> mono = userService.deleteUser(deleteUser);
-        StepVerifier.create(mono)
+    void givenFindByNameAndAge() {
+        Flux<User> flux = userService.findByNameAndAge("이센스", 33);
+        StepVerifier.create(flux)
+                    .assertNext(user-> assertThat(user.getName()).isEqualTo("이센스"))
                     .verifyComplete();
     }
 
     @Test
-    void givenCustomDeleteUser() {
-        Mono<Void> mono = userService.customDeleteUser(2L);
-        StepVerifier.create(mono)
+    void givenFindByNameContaining() {
+        Flux<User> flux = userService.findByNameContaining("센스");
+        StepVerifier.create(flux)
+                    .expectNextCount(2)
                     .verifyComplete();
     }
 
