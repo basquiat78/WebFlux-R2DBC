@@ -1,5 +1,9 @@
 # Spring Boot WebFlux With R2DBC      
 
+# OTHER BRANCH
+
+[혼자서북치고장구치기 1](https://github.com/basquiat78/WebFlux-R2DBC/tree/1.%ED%98%BC%EC%9E%90%EC%84%9C%EB%B6%81%EC%B9%98%EA%B3%A0%EC%9E%A5%EA%B5%AC%EC%B9%98%EA%B8%B0)
+
 ## Prerequisites     
 
 1. OS: macOS Catalina v10.15.5
