@@ -100,4 +100,23 @@ public class UserService {
         return userRepo.removeUser(id);
     }
 
+    /**
+     * dynamin method Chaining
+     * @param name
+     * @param age
+     * @return Flux<User>
+     */
+    public Flux<User> findByNameAndAge(String name, int age) {
+        return userRepo.findByNameAndAge(name, age);
+    }
+
+    /**
+     * dynamin method Chaining
+     * @param name
+     * @return Flux<User>
+     */
+    public Flux<User> findByNameContaining(String name) {
+        return userRepo.findByNameContaining(name);
+    }
+
 }
